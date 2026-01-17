@@ -1,0 +1,44 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: staging
+resources:
+  - ../../base/frontend
+  - ../../base/backend
+  - ../../base/redis
+  - ../../base/postgresql
+
+images:
+  - name: nginx
+    newTag: 1.25-alpine
+  - name: node
+    newTag: 18-alpine
+  - name: redis
+    newTag: 7-alpine
+  - name: postgres
+    newTag: 15-alpine
+
+replicas:
+  - name: frontend
+    count: 2
+  - name: backend
+    count: 2
+  - name: redis
+    count: 1
+
+patchesStrategicMerge:
+  - frontend-patch.yaml
+  - backend-patch.yaml
+
+configMapGenerator:
+  - name: app-config
+    literals:
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=debug
+      - FEATURE_FLAG_NEW_UI=false
+
+secretGenerator:
+  - name: postgres-secret
+    literals:
+      - username=staging_user
+      - password=StagingPass123!
+      - url=postgresql://staging_user:StagingPass123!@postgresql-service.staging.svc.cluster.local:5432/ecommerce

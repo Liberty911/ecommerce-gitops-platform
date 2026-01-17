@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nginxinc/nginx-unprivileged:1.25-alpine-slim
+        # Or use busybox if nginx fails
+        # image: busybox:latest
+        # command: ["sh", "-c", "echo 'Frontend OK' && sleep 3600"]
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "50m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: staging
+spec:
+  selector:
+    app: frontend
+  ports:
+  - port: 80
+    targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        # Use a tiny Go web server or Python
+        image: hashicorp/http-echo:latest
+        args: ["-text='Backend Service OK'", "-listen=:3000"]
+        # Or use Python
+        # image: python:3.12-alpine
+        # command: ["python", "-m", "http.server", "3000"]
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "50m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: staging
+spec:
+  selector:
+    app: backend
+  ports:
+  - port: 3000
+    targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        # Use smaller Redis image
+        image: redis:7-alpine
+        # Or skip Redis for now if image fails
+        # image: busybox:latest
+        # command: ["sh", "-c", "echo 'Redis placeholder' && sleep 3600"]
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "50m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: staging
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379

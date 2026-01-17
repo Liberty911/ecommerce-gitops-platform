@@ -1,0 +1,248 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: production
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head><title>E-Commerce Platform - PRODUCTION</title></head>
+    <body style="background-color: #f0f8ff; padding: 40px;">
+      <div style="max-width: 800px; margin: 0 auto; text-align: center;">
+        <h1 style="color: #2c3e50;">🚀 Production Environment</h1>
+        <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <h2 style="color: #27ae60;">✅ E-Commerce Platform</h2>
+          <p><strong>Status:</strong> <span style="color: green;">Operational</span></p>
+          <p><strong>Environment:</strong> Production</p>
+          <p><strong>Version:</strong> 1.0.0</p>
+          <p><strong>Backend Status:</strong> <span id="status">Checking...</span></p>
+          <hr>
+          <h3>🚀 DevOps Project Features:</h3>
+          <ul style="text-align: left; display: inline-block;">
+            <li>GitOps with ArgoCD</li>
+            <li>Multi-environment deployment</li>
+            <li>Production monitoring</li>
+            <li>Horizontal Pod Autoscaling</li>
+            <li>Health checks & probes</li>
+            <li>Resource management</li>
+          </ul>
+        </div>
+      </div>
+      <script>
+        fetch('http://backend-service.production:3000')
+          .then(r => r.json())
+          .then(d => document.getElementById('status').innerText = '✅ ' + d.status)
+          .catch(e => document.getElementById('status').innerText = '⚠️ ' + e.message);
+      </script>
+    </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: production
+  labels:
+    environment: production
+    tier: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+      environment: production
+  template:
+    metadata:
+      labels:
+        app: frontend
+        environment: production
+        version: "1.0.0"
+    spec:
+      containers:
+      - name: nginx
+        image: nginxinc/nginx-unprivileged:1.25-alpine-slim
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: LOG_LEVEL
+          value: "info"
+        volumeMounts:
+        - name: frontend-content
+          mountPath: /usr/share/nginx/html
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: frontend-content
+        configMap:
+          name: frontend-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: production
+spec:
+  selector:
+    app: frontend
+    environment: production
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: production
+  labels:
+    environment: production
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+      environment: production
+  template:
+    metadata:
+      labels:
+        app: backend
+        environment: production
+        version: "1.0.0"
+    spec:
+      containers:
+      - name: backend
+        image: hashicorp/http-echo:latest
+        imagePullPolicy: IfNotPresent
+        args: ["-text={\"service\":\"backend\",\"status\":\"healthy\",\"environment\":\"production\",\"version\":\"1.0.0\",\"features\":[\"gitops\",\"monitoring\",\"autoscaling\",\"multi-environment\"]}", "-listen=:3000"]
+        ports:
+        - containerPort: 3000
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: REDIS_HOST
+          value: "redis-service.production"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: production
+spec:
+  selector:
+    app: backend
+    environment: production
+  ports:
+  - port: 3000
+    targetPort: 3000
+    name: http
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: production
+  labels:
+    environment: production
+    tier: cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      environment: production
+  template:
+    metadata:
+      labels:
+        app: redis
+        environment: production
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 6379
+        command: ["redis-server"]
+        args: ["--appendonly", "yes"]
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: production
+spec:
+  selector:
+    app: redis
+    environment: production
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  type: ClusterIP

@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: production
+resources:
+  - ../../base/frontend
+  - ../../base/backend
+  - ../../base/redis
+  - ../../base/postgresql
+  - ../../base/monitoring
+
+images:
+  - name: nginx
+    newTag: 1.25-alpine
+  - name: node
+    newTag: 18-alpine
+  - name: redis
+    newTag: 7-alpine
+  - name: postgres
+    newTag: 15-alpine
+
+replicas:
+  - name: frontend
+    count: 3
+  - name: backend
+    count: 3
+  - name: redis
+    count: 2
+
+patchesStrategicMerge:
+  - frontend-patch.yaml
+  - backend-patch.yaml
+  - hpa-patch.yaml
+
+configMapGenerator:
+  - name: app-config
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+      - FEATURE_FLAG_NEW_UI=true
+
+secretGenerator:
+  - name: postgres-secret
+    literals:
+      - username=production_user
+      - password=SecureProdPass456!
+      - url=postgresql://production_user:SecureProdPass456!@postgresql-service.production.svc.cluster.local:5432/ecommerce
+
+commonLabels:
+  environment: production
+  tier: production
